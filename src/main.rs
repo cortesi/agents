@@ -182,7 +182,7 @@ fn render_combined(
             ))
         })?;
         let tpl = template::Template::parse(&txt)?;
-        out.push_str(&tpl.render(root, None)?);
+        out.push_str(&tpl.render(root)?);
     }
 
     if let Some(sp) = shared_template_path
@@ -193,7 +193,7 @@ fn render_combined(
             error::Error::Root(format!("template read error ({}): {e}", sp.display()))
         })?;
         let tpl = template::Template::parse(&txt)?;
-        out.push_str(&tpl.render(root, None)?);
+        out.push_str(&tpl.render(root)?);
     }
 
     Ok(out)

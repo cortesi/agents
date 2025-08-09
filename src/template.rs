@@ -22,14 +22,10 @@ impl Template {
 
     /// Render this template against the given project root.
     ///
-    /// Prepends `prefix` verbatim if provided, then appends all literal text
-    /// blocks and the bodies of conditional blocks whose expressions evaluate
-    /// to true.
-    pub fn render(&self, root: &Path, prefix: Option<&str>) -> Result<String, Error> {
+    /// Appends all literal text blocks and the bodies of conditional blocks
+    /// whose expressions evaluate to true.
+    pub fn render(&self, root: &Path) -> Result<String, Error> {
         let mut out = String::new();
-        if let Some(p) = prefix {
-            out.push_str(p);
-        }
         render_blocks(&self.blocks, root, &mut out)?;
         Ok(out)
     }
@@ -56,12 +52,12 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn render_includes_text_and_prefix() {
+    fn render_includes_text() {
         let tpl = Template::parse("hello world").unwrap();
         let td = TempDir::new().unwrap();
         fs::create_dir_all(td.path().join(".git")).unwrap();
-        let out = tpl.render(td.path(), Some("prefix\n")).unwrap();
-        assert!(out.contains("prefix\nhello world"));
+        let out = tpl.render(td.path()).unwrap();
+        assert!(out.contains("hello world"));
     }
 
     #[test]
@@ -71,13 +67,13 @@ mod tests {
         let td = TempDir::new().unwrap();
         fs::create_dir_all(td.path().join(".git")).unwrap();
         // No file -> block excluded
-        let out1 = tpl.render(td.path(), None).unwrap();
+        let out1 = tpl.render(td.path()).unwrap();
         assert!(out1.contains("Before"));
         assert!(out1.contains("After"));
         assert!(!out1.contains("Matched"));
         // Create file -> block included
         fs::File::create(td.path().join("Cargo.toml")).unwrap();
-        let out2 = tpl.render(td.path(), None).unwrap();
+        let out2 = tpl.render(td.path()).unwrap();
         assert!(out2.contains("Matched"));
     }
 
@@ -86,7 +82,7 @@ mod tests {
         let tpl = Template::parse("<!-- if exists('{oops') -->x<!-- endif -->").unwrap();
         let td = TempDir::new().unwrap();
         fs::create_dir_all(td.path().join(".git")).unwrap();
-        let err = tpl.render(td.path(), None).unwrap_err();
+        let err = tpl.render(td.path()).unwrap_err();
         match err {
             Error::Template(_) => {}
             other => panic!("unexpected error: {other:?}"),
