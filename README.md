@@ -14,7 +14,8 @@ your project.
 2. **Load templates**: local `<project-root>/.agents.md` and shared `~/.agents.md`.
 3. **Evaluate matchers** against the target project.
 4. **Render and combine**: render the local templates and concatenate results.
-5. **Write** the result to `<project-root>/AGENTS.md` and (optionally) `<project-root>/CLAUDE.md`.
+5. **Show diff**: by default, print a unified diff for `AGENTS.md` if it will change (use `--quiet` to suppress).
+6. **Write** the result to `<project-root>/AGENTS.md` and (optionally) `<project-root>/CLAUDE.md`.
 
 ---
 
@@ -41,6 +42,7 @@ agents /path/to/project
 --root <path>         Force project root (skip detection)
 --stdout              Print instead of writing AGENTS.md
 --diff                Show a unified diff of pending changes, do not write
+--quiet               Suppress default diff output when writing changes
 --claude              Also write CLAUDE.md alongside AGENTS.md
 --out <path>          Override output file path (relative to project root if not absolute)
 -V, --version         Print version

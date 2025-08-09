@@ -41,6 +41,10 @@ struct Args {
     #[arg(long)]
     diff: bool,
 
+    /// Suppress default diff output when writing changes
+    #[arg(long)]
+    quiet: bool,
+
     /// Also write CLAUDE.md alongside AGENTS.md
     #[arg(long)]
     claude: bool,
@@ -88,6 +92,25 @@ fn main() {
     } else {
         // Write output (and optionally CLAUDE.md)
         let agents_path = compute_output_path(&args, &root);
+        // Unless --quiet, show diff if there are changes, else "No changes" if nothing to do
+        if !args.quiet {
+            let current = fs::read_to_string(&agents_path).unwrap_or_default();
+            let agents_changed = current != rendered;
+            if agents_changed {
+                print_unified_diff(&current, &rendered, &agents_path);
+            } else {
+                // If also writing CLAUDE, and it differs, don't print "No changes"
+                if args.claude {
+                    let claude_path = agents_path.parent().unwrap_or(&root).join("CLAUDE.md");
+                    let claude_current = fs::read_to_string(&claude_path).unwrap_or_default();
+                    if claude_current == rendered {
+                        println!("{}", "No changes".bright_black());
+                    }
+                } else {
+                    println!("{}", "No changes".bright_black());
+                }
+            }
+        }
         if let Err(e) = write_if_changed(&agents_path, &rendered) {
             eprintln!("write error ({}): {e}", agents_path.display());
             process::exit(1);
@@ -163,13 +186,15 @@ fn render_combined(
     }
 
     if let Some(sp) = shared_template_path
-        && !same_path && sp.exists() {
-            let txt = fs::read_to_string(sp).map_err(|e| {
-                error::Error::Root(format!("template read error ({}): {e}", sp.display()))
-            })?;
-            let tpl = template::Template::parse(&txt)?;
-            out.push_str(&tpl.render(root, None)?);
-        }
+        && !same_path
+        && sp.exists()
+    {
+        let txt = fs::read_to_string(sp).map_err(|e| {
+            error::Error::Root(format!("template read error ({}): {e}", sp.display()))
+        })?;
+        let tpl = template::Template::parse(&txt)?;
+        out.push_str(&tpl.render(root, None)?);
+    }
 
     Ok(out)
 }
