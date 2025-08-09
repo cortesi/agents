@@ -1,10 +1,10 @@
 # agents
 
-A tiny CLI that renders a per‑project `AGENTS.md` and `CLAUDE.md` files by
-combining a project‑local template at `<project-root>/.agents.md` with a shared
-template at `~/.agents.md`. Templates evaluate matchers against the target
-project (e.g., `exists("**/*.rs")`) to conditionally include or skip blocks,
-letting you tailor the resulting output to your project.
+Render per‑project `AGENTS.md` and `CLAUDE.md` files by combining a
+project‑local template at `<project-root>/.agents.md` with a shared template at
+`~/.agents.md`. Templates evaluate matchers against the target project (e.g.,
+`lang(rust)`) to conditionally include blocks, letting you tailor the output to
+your project.
 
 ---
 
@@ -62,15 +62,11 @@ If neither is found, `agents` exits with a non‑zero status. The resolved root 
 
 ## Templates
 
-### Project‑local template (`.agents.md`)
-
-- Optional file at `<project-root>/.agents.md`.
-- Fully interpreted using the same template language as the shared template.
-- Rendered first; its output is concatenated before the shared template output.
-
-### Template language (minimal & Markdown‑safe)
-
-Templates are just Markdown with **HTML‑comment control tags**, so they still render cleanly if opened directly. We use comments so templates remain readable and portable across viewers. The control syntax stays invisible in rendered Markdown, diff‑friendly in git, and avoids executing arbitrary code—only simple boolean checks (e.g., `exists`, `env`).
+Templates are just Markdown with **HTML‑comment control tags**, so they still
+render cleanly if opened directly. We use comments so templates remain readable
+and portable across viewers. The control syntax stays invisible in rendered
+Markdown, diff‑friendly in git, and avoids executing arbitrary code - only
+simple boolean checks (e.g., `exists`, `env`).
 
 #### Block conditionals
 
@@ -169,20 +165,6 @@ This project contains Rust code.
 
 run cargo clippy before finalising work and fix all warnings
 ```
-
----
-
-## Configuration
-
-Priority order (first present wins):
-
-1. `--template <path>`
-2. `AGENTS_TEMPLATE` env var
-3. `~/.agents.md` (default)
-
-Additional inputs:
-
-* `<project-root>/.agents.md`: Optional per‑project template rendered before the shared one.
 
 ---
 
