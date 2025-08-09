@@ -29,4 +29,3 @@ impl Drop for EnvGuard {
         }
     }
 }
-

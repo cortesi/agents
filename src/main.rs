@@ -13,6 +13,8 @@ mod expr;
 mod parse;
 mod project;
 mod template;
+const AGENTS_MD: &str = "AGENTS.md";
+const CLAUDE_MD: &str = "CLAUDE.md";
 #[cfg(test)]
 mod test_support;
 
@@ -92,38 +94,20 @@ fn main() {
     if args.stdout {
         print!("{rendered}");
     } else {
-        // Write output (and optionally CLAUDE.md)
-        let agents_path = compute_output_path(&args, &root);
+        // Write output (AGENTS.md or CLAUDE.md based on --claude)
+        let out_path = compute_output_path(&args, &root);
         // Unless --quiet, show diff if there are changes, else "No changes" if nothing to do
         if !args.quiet {
-            let current = fs::read_to_string(&agents_path).unwrap_or_default();
-            let agents_changed = current != rendered;
-            if agents_changed {
-                print_unified_diff(&current, &rendered, &agents_path);
+            let current = fs::read_to_string(&out_path).unwrap_or_default();
+            if current != rendered {
+                print_unified_diff(&current, &rendered, &out_path);
             } else {
-                // If also writing CLAUDE, and it differs, don't print "No changes"
-                if args.claude {
-                    let claude_path = agents_path.parent().unwrap_or(&root).join("CLAUDE.md");
-                    let claude_current = fs::read_to_string(&claude_path).unwrap_or_default();
-                    if claude_current == rendered {
-                        println!("{}", "No changes".bright_black());
-                    }
-                } else {
-                    println!("{}", "No changes".bright_black());
-                }
+                println!("{}", "No changes".bright_black());
             }
         }
-        if let Err(e) = write_if_changed(&agents_path, &rendered) {
-            eprintln!("write error ({}): {e}", agents_path.display());
+        if let Err(e) = write_if_changed(&out_path, &rendered) {
+            eprintln!("write error ({}): {e}", out_path.display());
             process::exit(1);
-        }
-        if args.claude {
-            let dir = agents_path.parent().unwrap_or(&root);
-            let claude_path = dir.join("CLAUDE.md");
-            if let Err(e) = write_if_changed(&claude_path, &rendered) {
-                eprintln!("write error ({}): {e}", claude_path.display());
-                process::exit(1);
-            }
         }
     }
 }
@@ -215,7 +199,10 @@ fn compute_output_path(args: &Args, root: &Path) -> PathBuf {
             let p = expand_tilde(p);
             if p.is_absolute() { p } else { root.join(p) }
         }
-        None => root.join("AGENTS.md"),
+        None => {
+            let default = if args.claude { CLAUDE_MD } else { AGENTS_MD };
+            root.join(default)
+        }
     }
 }
 
@@ -268,6 +255,7 @@ mod tests {
     use super::{compute_output_path, render_combined, resolve_shared_template_path};
     use crate::Args;
     use crate::test_support::EnvGuard;
+    use crate::{AGENTS_MD, CLAUDE_MD};
     use std::fs;
     use std::io::Write;
     use std::path::PathBuf;
@@ -379,12 +367,21 @@ mod tests {
 
         // ~ in --out
         let args2 = Args {
-            out: Some(PathBuf::from("~/AGENTS.md")),
+            out: Some(PathBuf::from(format!("~/{AGENTS_MD}"))),
             ..args
         };
         let out_path = compute_output_path(&args2, td.path());
         assert!(out_path.is_absolute());
-        assert_eq!(out_path, home.join("AGENTS.md"));
+        assert_eq!(out_path, home.join(AGENTS_MD));
+
+        // default file switches to CLAUDE.md when --claude is set
+        let args3 = Args {
+            claude: true,
+            out: None,
+            ..args2
+        };
+        let out_default = compute_output_path(&args3, td.path());
+        assert_eq!(out_default, td.path().join(CLAUDE_MD));
 
         // EnvGuard drop restores HOME
     }
