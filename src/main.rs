@@ -13,10 +13,11 @@ mod expr;
 mod parse;
 mod project;
 mod template;
-const AGENTS_MD: &str = "AGENTS.md";
-const CLAUDE_MD: &str = "CLAUDE.md";
 #[cfg(test)]
 mod test_support;
+
+const AGENTS_MD: &str = "AGENTS.md";
+const CLAUDE_MD: &str = "CLAUDE.md";
 
 #[derive(Debug, Parser)]
 #[command(
