@@ -148,29 +148,25 @@ Using npm or yarn (no pnpm lockfile found).
 **`~/.agents.md`** (shared template)
 
 ```md
-<!-- if exists("**/*.rs") -->
-run cargo clippy before finalising work and fix all warnings
-<!-- endif -->
-```
-
-```md
 <!-- if lang(rust) -->
-This project contains Rust code.
+run cargo clippy before finalising work and fix all warnings
 <!-- endif -->
 ```
 
 **`<project>/.agents.md`** (per‑project template)
 
 ```md
-<!-- if exists("README.md") -->
-# Project Agents
-<!-- endif -->
+# Project agentsmd
+
+Project description
 ```
 
 **Rendered `AGENTS.md`** (local then shared)
 
 ```md
 # Project Agents
+
+Project description
 
 run cargo clippy before finalising work and fix all warnings
 ```
