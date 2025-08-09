@@ -1,26 +1,24 @@
 # agents
 
-A tiny CLI that renders a per‑project `AGENTS.md` by combining a project‑local
-template at `<project-root>/.agents.md` (optional) with a shared template at
-`~/.agents.md` (or an override). Both files are fully interpreted templates.
-It evaluates simple matchers against the target project (e.g., `exists("**/*.rs")`)
-to conditionally include or skip blocks of Markdown.
+A tiny CLI that renders a per‑project `AGENTS.md` and `CLAUDE.md` files by
+combining a project‑local template at `<project-root>/.agents.md` with a shared
+template at `~/.agents.md`. Templates evaluate matchers against the target
+project (e.g., `exists("**/*.rs")`) to conditionally include or skip blocks,
+letting you tailor the resulting output to your project.
 
 ---
 
 ## How it works
 
-1. **Locate project root** (prefers git root; falls back to heuristics / provided path).
-2. **Load templates**: optional local `<project-root>/.agents.md` and shared `~/.agents.md` (unless overridden).
-3. **Evaluate matchers** against the target project (filesystem, metadata, environment).
-4. **Render and combine**: render the local template (if present), then the shared template; concatenate results.
-5. **Write** the result to `<project-root>/AGENTS.md`.
+1. **Locate project root** 
+2. **Load templates**: local `<project-root>/.agents.md` and shared `~/.agents.md`.
+3. **Evaluate matchers** against the target project.
+4. **Render and combine**: render the local templates and concatenate results.
+5. **Write** the result to `<project-root>/AGENTS.md` and (optionally) `<project-root>/CLAUDE.md`.
 
 ---
 
 ## Installation
-
-Install using Cargo:
 
 ```bash
 cargo install agents
@@ -30,8 +28,6 @@ cargo install agents
 
 ## Usage
 
-### Basic
-
 ```bash
 # Render for the current project (detected root) and write AGENTS.md there
 agents
@@ -39,8 +35,6 @@ agents
 # Render for a specific project path
 agents /path/to/project
 ```
-
-### Flags
 
 ```
 --template <path>     Override template (defaults to ~/.agents.md)
@@ -90,8 +84,8 @@ This project contains Rust sources.
 
 * Combine conditions with `&&`, `||`, `!` and parentheses.
 * Strings may use **single quotes**, **double quotes**, or **raw strings** to reduce escaping.
-
-  * Examples: `exists('src/**/{main,lib}.rs')`, `exists("Cargo.toml")`, `exists(r"**/*.rs")`.
+  * Examples: `exists('src/**/{main,lib}.rs')`, `exists("Cargo.toml")`,
+    `exists(r"**/*.rs")`.
 
 Example:
 
@@ -197,9 +191,10 @@ Additional inputs:
 * **Template errors** (e.g., unmatched `endif`, invalid expression, unknown
   matcher): the process **exits with a non‑zero status** and does not write
   output.
+* **Missing templates**: if neither a local `<project-root>/.agents.md` nor a shared
+  template is present/readable, `agents` **exits with a non‑zero status**.
 * **Idempotency**: running `agents` with the same inputs (shared template,
   local `.agents.md`, project tree, and env) yields **byte‑identical**
   `AGENTS.md`. Re‑running without changes results in no diff and no rewrite.
 * **Determinism**: evaluation is pure with respect to the project tree and the
   current environment; there are no network calls or time‑dependent behaviors.
-

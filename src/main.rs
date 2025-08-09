@@ -60,17 +60,11 @@ fn main() {
             process::exit(1);
         }
     };
-    // Resolve shared template path: --template > AGENTS_TEMPLATE > ~/.agents.md
-    let template_path = match resolve_template_path(&args) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("{e}");
-            process::exit(1);
-        }
-    };
+    // Resolve optional shared template path: --template > AGENTS_TEMPLATE > ~/.agents.md
+    let template_path_opt = resolve_shared_template_path(&args);
 
     // Render combined templates; support --stdout and --diff for now.
-    let rendered = match render_combined(&root, &template_path) {
+    let rendered = match render_combined(&root, template_path_opt.as_deref()) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{e}");
@@ -120,28 +114,44 @@ fn compute_root(args: &Args) -> Result<PathBuf, error::Error> {
     project::project_root(start)
 }
 
-fn resolve_template_path(args: &Args) -> Result<PathBuf, error::Error> {
+fn resolve_shared_template_path(args: &Args) -> Option<PathBuf> {
     if let Some(p) = &args.template {
-        return Ok(p.clone());
+        return Some(p.clone());
     }
     if let Ok(envp) = env::var("AGENTS_TEMPLATE") {
-        return Ok(PathBuf::from(envp));
+        return Some(PathBuf::from(envp));
     }
-    // Default to ~/.agents.md
-    let home = env::var("HOME").map_err(|e| error::Error::Root(e.to_string()))?;
-    Ok(PathBuf::from(home).join(".agents.md"))
+    if let Ok(home) = env::var("HOME") {
+        return Some(PathBuf::from(home).join(".agents.md"));
+    }
+    None
 }
 
-fn render_combined(root: &Path, shared_template_path: &Path) -> Result<String, error::Error> {
+fn render_combined(
+    root: &Path,
+    shared_template_path: Option<&Path>,
+) -> Result<String, error::Error> {
     // Optional project-local template at <root>/.agents.md
     let local_path = root.join(".agents.md");
 
     // Render local first (if present), then shared. If both paths are the same, render once.
     let mut out = String::new();
 
-    let same_path = paths_equal(&local_path, shared_template_path);
+    let local_exists = local_path.exists();
+    let shared_exists = shared_template_path.map(|p| p.exists()).unwrap_or(false);
 
-    if local_path.exists() {
+    if !local_exists && !shared_exists {
+        return Err(error::Error::Root(
+            "no template found: neither <project>/.agents.md nor shared template".into(),
+        ));
+    }
+
+    let same_path = match shared_template_path {
+        Some(p) => paths_equal(&local_path, p),
+        None => false,
+    };
+
+    if local_exists {
         let txt = fs::read_to_string(&local_path).map_err(|e| {
             error::Error::Root(format!(
                 "template read error ({}): {e}",
@@ -152,16 +162,14 @@ fn render_combined(root: &Path, shared_template_path: &Path) -> Result<String, e
         out.push_str(&tpl.render(root, None)?);
     }
 
-    if !same_path {
-        let txt = fs::read_to_string(shared_template_path).map_err(|e| {
-            error::Error::Root(format!(
-                "template read error ({}): {e}",
-                shared_template_path.display()
-            ))
-        })?;
-        let tpl = template::Template::parse(&txt)?;
-        out.push_str(&tpl.render(root, None)?);
-    }
+    if let Some(sp) = shared_template_path
+        && !same_path && sp.exists() {
+            let txt = fs::read_to_string(sp).map_err(|e| {
+                error::Error::Root(format!("template read error ({}): {e}", sp.display()))
+            })?;
+            let tpl = template::Template::parse(&txt)?;
+            out.push_str(&tpl.render(root, None)?);
+        }
 
     Ok(out)
 }
@@ -244,7 +252,7 @@ mod tests {
         let shared = root.join("shared.md");
         write(&local, "L\n");
         write(&shared, "S\n");
-        let out = render_combined(&root, &shared).unwrap();
+        let out = render_combined(&root, Some(&shared)).unwrap();
         assert_eq!(out, "L\nS\n");
     }
 
@@ -264,7 +272,7 @@ mod tests {
         // Shared template empty
         let shared = root.join("shared.md");
         write(&shared, "");
-        let out = render_combined(&root, &shared).unwrap();
+        let out = render_combined(&root, Some(&shared)).unwrap();
         assert!(out.contains("Before\n"));
         assert!(out.contains("Hit\n"));
         assert!(out.contains("After\n"));
@@ -278,7 +286,33 @@ mod tests {
         let local = root.join(".agents.md");
         write(&local, "OnlyOnce\n");
         // Use the same path for shared
-        let out = render_combined(&root, &local).unwrap();
+        let out = render_combined(&root, Some(&local)).unwrap();
         assert_eq!(out, "OnlyOnce\n");
+    }
+
+    #[test]
+    fn errors_when_both_templates_missing() {
+        let td = TempDir::new().unwrap();
+        let root = td.path().to_path_buf();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let shared = root.join("nope.md");
+        let err = render_combined(&root, Some(&shared)).unwrap_err();
+        match err {
+            crate::error::Error::Root(msg) => assert!(msg.contains("no template found")),
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn succeeds_with_only_local_present() {
+        let td = TempDir::new().unwrap();
+        let root = td.path().to_path_buf();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let local = root.join(".agents.md");
+        write(&local, "LocalOnly\n");
+        // Shared path missing
+        let shared = root.join("nope.md");
+        let out = render_combined(&root, Some(&shared)).unwrap();
+        assert_eq!(out, "LocalOnly\n");
     }
 }
