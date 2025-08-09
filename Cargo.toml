@@ -1,11 +1,11 @@
 [package]
-name = "agents"
+name = "agentsmd"
 version = "0.0.1"
 edition = "2024"
 authors = ["Aldo Cortesi <aldo@corte.si>"]
 description = "Generate AGENTS.md from project and global templates"
 license = "MIT"
-repository = "https://github.com/cortesi/agents"
+repository = "https://github.com/cortesi/agentsmd"
 readme = "README.md"
 keywords = ["agents", "claude", "codex", "gemini", "agents.md", "claude.md"]
 

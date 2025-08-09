@@ -1,9 +1,9 @@
 ![Discord](https://img.shields.io/discord/1381424110831145070?style=flat-square&logo=rust&link=https%3A%2F%2Fdiscord.gg%2FfHmRmuBDxF)
-[![Crates.io](https://img.shields.io/crates/v/agents.svg)](https://crates.io/crates/agents)
+[![Crates.io](https://img.shields.io/crates/v/agentsmd.svg)](https://crates.io/crates/agentsmd)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
-# agents
+# agentsmd
 
 Render per‑project `AGENTS.md` and `CLAUDE.md` files by combining a
 project‑local template at `<project-root>/.agents.md` with a shared template at
@@ -27,7 +27,7 @@ your project.
 ## Installation
 
 ```bash
-cargo install agents
+cargo install agentsmd
 ```
 
 ---
@@ -36,10 +36,10 @@ cargo install agents
 
 ```bash
 # Render for the current project (detected root) and write AGENTS.md there
-agents
+agentsmd
 
 # Render for a specific project path
-agents /path/to/project
+agentsmd /path/to/project
 ```
 
 ```
