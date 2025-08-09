@@ -1,3 +1,8 @@
+![Discord](https://img.shields.io/discord/1381424110831145070?style=flat-square&logo=rust&link=https%3A%2F%2Fdiscord.gg%2FfHmRmuBDxF)
+[![Crates.io](https://img.shields.io/crates/v/agents.svg)](https://crates.io/crates/agents)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+
 # agents
 
 Render per‑project `AGENTS.md` and `CLAUDE.md` files by combining a
@@ -182,3 +187,14 @@ run cargo clippy before finalising work and fix all warnings
   `AGENTS.md`. Re‑running without changes results in no diff and no rewrite.
 * **Determinism**: evaluation is pure with respect to the project tree and the
   current environment; there are no network calls or time‑dependent behaviors.
+
+---
+
+
+## Community
+
+Want to contribute? Have ideas or feature requests? Come tell us about it on
+[Discord](https://discord.gg/fHmRmuBDxF).
+
+
+---
