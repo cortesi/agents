@@ -5,7 +5,7 @@
 
 # agentsmd
 
-Render per‑project `AGENTS.md` and `CLAUDE.md` files by combining a
+Generate per‑project `AGENTS.md` and `CLAUDE.md` files by combining a
 project‑local template at `<project-root>/.agents.md` with a shared template at
 `~/.agents.md`. Templates evaluate matchers against the target project (e.g.,
 `lang(rust)`) to conditionally include blocks, letting you tailor the output to
