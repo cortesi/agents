@@ -15,12 +15,11 @@ your project.
 
 ## How it works
 
-1. **Locate project root** 
-2. **Load templates**: local `<project-root>/.agents.md` and shared `~/.agents.md`.
-3. **Evaluate matchers** against the target project.
-4. **Render and combine**: render the local templates and concatenate results.
-5. **Show diff**: by default, print a unified diff for `AGENTS.md` if it will change (use `--quiet` to suppress).
-6. **Write** the result to `<project-root>/AGENTS.md` and (optionally) `<project-root>/CLAUDE.md`.
+1. **Finds project root** by scanning upward for `.git/` or other VCS markers
+2. **Loads templates** from `~/.agents.md` (shared) and `<project-root>/.agents.md` (local)
+3. **Evaluates conditional blocks** using matchers like `exists("**/*.rs")` and `env(CI)`
+4. **Renders output** by concatenating local template results with shared template results
+5. **Writes** `AGENTS.md` (and optionally `CLAUDE.md`) to the project root
 
 ---
 
@@ -35,10 +34,13 @@ cargo install agentsmd
 ## Usage
 
 ```bash
-# Render for the current project (detected root) and write AGENTS.md there
+# Render for the current project and write AGENTS.md to the project root
 agentsmd
 
-# Render for a specific project path
+# Render for the current project and write AGENTS.md to the project root
+agentsmd --claude
+
+# Render for a specific project path and write AGENTS.md to the project root
 agentsmd /path/to/project
 ```
 

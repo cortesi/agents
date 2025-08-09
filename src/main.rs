@@ -16,7 +16,7 @@ mod template;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "agents",
+    name = "agentsmd",
     about = "Render AGENTS.md by combining project and shared templates with simple matchers",
     version
 )]

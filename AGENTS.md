@@ -90,7 +90,7 @@ ruskel serde
 # A sub-path within a crate
 ruskel serde::de::Deserialize 
 
-# Path to a crate
+# Filesystem path to a crate
 ruskel /my/path
 
 # A module within that crate

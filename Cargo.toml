@@ -7,7 +7,7 @@ description = "Generate per-project AGENTS.md from templates"
 license = "MIT"
 repository = "https://github.com/cortesi/agentsmd"
 readme = "README.md"
-keywords = ["agents", "claude", "codex", "agents.md", "gemini"]
+keywords = ["agents", "claude", "codex", "gemini"]
 
 
 [dependencies]
