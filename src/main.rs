@@ -13,6 +13,8 @@ mod expr;
 mod parse;
 mod project;
 mod template;
+#[cfg(test)]
+mod test_support;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -265,7 +267,7 @@ fn expand_tilde(p: &Path) -> PathBuf {
 mod tests {
     use super::{compute_output_path, render_combined, resolve_shared_template_path};
     use crate::Args;
-    use std::env as std_env;
+    use crate::test_support::EnvGuard;
     use std::fs;
     use std::io::Write;
     use std::path::PathBuf;
@@ -358,8 +360,8 @@ mod tests {
         let td = TempDir::new().unwrap();
         let home = td.path().to_path_buf();
         fs::create_dir_all(home.join(".git")).unwrap();
-        let prev_home = std_env::var("HOME").ok();
-        unsafe { std_env::set_var("HOME", &home) };
+        let home_guard = EnvGuard::new("HOME");
+        home_guard.set(&home);
 
         // ~ in --template
         let args = Args {
@@ -384,11 +386,6 @@ mod tests {
         assert!(out_path.is_absolute());
         assert_eq!(out_path, home.join("AGENTS.md"));
 
-        // Restore HOME
-        if let Some(prev) = prev_home {
-            unsafe { std_env::set_var("HOME", prev) };
-        } else {
-            unsafe { std_env::remove_var("HOME") };
-        }
+        // EnvGuard drop restores HOME
     }
 }

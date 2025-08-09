@@ -134,6 +134,7 @@ fn lang_match(root: &Path, name: &str) -> Result<bool, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::EnvGuard;
     use std::fs;
     use std::io::Write;
     use tempfile::TempDir;
@@ -289,10 +290,11 @@ mod tests {
         ];
 
         let (_td, root) = setup(&[]);
+        let guard = EnvGuard::new(key);
         for c in cases {
             match c.set {
-                Some(v) => unsafe { std::env::set_var(key, v) },
-                None => unsafe { std::env::remove_var(key) },
+                Some(v) => guard.set(v),
+                None => guard.unset(),
             }
             let got = c.expr.is_match(&root).unwrap();
             assert_eq!(got, c.expect, "case: {}", c.name);
@@ -304,7 +306,8 @@ mod tests {
         let (_td, root) = setup(&["a.txt"]);
         let exists_a = Expr::Matcher(Matcher::Exists("a.txt".into()));
         let exists_b = Expr::Matcher(Matcher::Exists("b.txt".into()));
-        unsafe { std::env::remove_var("FOO") };
+        let foo_guard = EnvGuard::new("FOO");
+        foo_guard.unset();
         let expr = Expr::Or(
             Box::new(Expr::And(
                 Box::new(exists_a.clone()),
@@ -315,7 +318,7 @@ mod tests {
         assert!(expr.is_match(&root).unwrap());
         touch(&root.join("b.txt"));
         assert!(!expr.is_match(&root).unwrap());
-        unsafe { std::env::set_var("FOO", "1") };
+        foo_guard.set("1");
         assert!(expr.is_match(&root).unwrap());
     }
 
