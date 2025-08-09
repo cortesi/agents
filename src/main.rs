@@ -128,10 +128,10 @@ fn main() {
 
 fn compute_root(args: &Args) -> Result<PathBuf, error::Error> {
     if let Some(root) = &args.root {
-        return Ok(root.clone());
+        return Ok(expand_tilde(root));
     }
     let start = match &args.path {
-        Some(p) => p.clone(),
+        Some(p) => expand_tilde(p),
         None => env::current_dir().map_err(|e| error::Error::Root(e.to_string()))?,
     };
     project::project_root(start)
@@ -139,10 +139,11 @@ fn compute_root(args: &Args) -> Result<PathBuf, error::Error> {
 
 fn resolve_shared_template_path(args: &Args) -> Option<PathBuf> {
     if let Some(p) = &args.template {
-        return Some(p.clone());
+        return Some(expand_tilde(p));
     }
     if let Ok(envp) = env::var("AGENTS_TEMPLATE") {
-        return Some(PathBuf::from(envp));
+        let p = PathBuf::from(envp);
+        return Some(expand_tilde(&p));
     }
     if let Ok(home) = env::var("HOME") {
         return Some(PathBuf::from(home).join(".agents.md"));
@@ -208,8 +209,10 @@ fn paths_equal(a: &Path, b: &Path) -> bool {
 
 fn compute_output_path(args: &Args, root: &Path) -> PathBuf {
     match &args.out {
-        Some(p) if p.is_absolute() => p.clone(),
-        Some(p) => root.join(p),
+        Some(p) => {
+            let p = expand_tilde(p);
+            if p.is_absolute() { p } else { root.join(p) }
+        }
         None => root.join("AGENTS.md"),
     }
 }
@@ -253,11 +256,19 @@ fn print_unified_diff(current: &str, rendered: &str, target: &Path) {
     }
 }
 
+fn expand_tilde(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    PathBuf::from(shellexpand::tilde(&s).into_owned())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::render_combined;
+    use super::{compute_output_path, render_combined, resolve_shared_template_path};
+    use crate::Args;
+    use std::env as std_env;
     use std::fs;
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     fn write(path: &std::path::Path, contents: &str) {
@@ -339,5 +350,45 @@ mod tests {
         let shared = root.join("nope.md");
         let out = render_combined(&root, Some(&shared)).unwrap();
         assert_eq!(out, "LocalOnly\n");
+    }
+
+    #[test]
+    fn tilde_expansion_in_paths() {
+        // Set up a fake HOME
+        let td = TempDir::new().unwrap();
+        let home = td.path().to_path_buf();
+        fs::create_dir_all(home.join(".git")).unwrap();
+        let prev_home = std_env::var("HOME").ok();
+        unsafe { std_env::set_var("HOME", &home) };
+
+        // ~ in --template
+        let args = Args {
+            path: None,
+            template: Some(PathBuf::from("~/shared.md")),
+            root: None,
+            stdout: false,
+            diff: false,
+            quiet: false,
+            claude: false,
+            out: None,
+        };
+        let p = resolve_shared_template_path(&args).unwrap();
+        assert_eq!(p, home.join("shared.md"));
+
+        // ~ in --out
+        let args2 = Args {
+            out: Some(PathBuf::from("~/AGENTS.md")),
+            ..args
+        };
+        let out_path = compute_output_path(&args2, td.path());
+        assert!(out_path.is_absolute());
+        assert_eq!(out_path, home.join("AGENTS.md"));
+
+        // Restore HOME
+        if let Some(prev) = prev_home {
+            unsafe { std_env::set_var("HOME", prev) };
+        } else {
+            unsafe { std_env::remove_var("HOME") };
+        }
     }
 }
