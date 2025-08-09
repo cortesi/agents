@@ -17,7 +17,7 @@ mod template;
 #[derive(Debug, Parser)]
 #[command(
     name = "agents",
-    about = "Render AGENTS.md from a shared template with simple matchers",
+    about = "Render AGENTS.md by combining project and shared templates with simple matchers",
     version
 )]
 struct Args {
@@ -60,7 +60,7 @@ fn main() {
             process::exit(1);
         }
     };
-    // Resolve template path: --template > AGENTS_TEMPLATE > ~/.agents.md
+    // Resolve shared template path: --template > AGENTS_TEMPLATE > ~/.agents.md
     let template_path = match resolve_template_path(&args) {
         Ok(p) => p,
         Err(e) => {
@@ -69,34 +69,8 @@ fn main() {
         }
     };
 
-    // Read and parse template; stub prints the parsed structure
-    let tpl_text = match fs::read_to_string(&template_path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("template read error ({}): {}", template_path.display(), e);
-            process::exit(1);
-        }
-    };
-
-    let tpl = match template::Template::parse(&tpl_text) {
-        Ok(t) => t,
-        Err(e) => {
-            eprintln!("{e}");
-            process::exit(1);
-        }
-    };
-
-    // Load optional prefix and strip maintainer-only notes.
-    let prefix = match load_prefix(&root) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("{e}");
-            process::exit(1);
-        }
-    };
-
-    // Render template; support --stdout and --diff for now.
-    let rendered = match tpl.render(&root, prefix.as_deref()) {
+    // Render combined templates; support --stdout and --diff for now.
+    let rendered = match render_combined(&root, &template_path) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{e}");
@@ -158,94 +132,45 @@ fn resolve_template_path(args: &Args) -> Result<PathBuf, error::Error> {
     Ok(PathBuf::from(home).join(".agents.md"))
 }
 
-fn load_prefix(root: &Path) -> Result<Option<String>, error::Error> {
-    let path = root.join(".agents-prefix.md");
-    if !path.exists() {
-        return Ok(None);
+fn render_combined(root: &Path, shared_template_path: &Path) -> Result<String, error::Error> {
+    // Optional project-local template at <root>/.agents.md
+    let local_path = root.join(".agents.md");
+
+    // Render local first (if present), then shared. If both paths are the same, render once.
+    let mut out = String::new();
+
+    let same_path = paths_equal(&local_path, shared_template_path);
+
+    if local_path.exists() {
+        let txt = fs::read_to_string(&local_path).map_err(|e| {
+            error::Error::Root(format!(
+                "template read error ({}): {e}",
+                local_path.display()
+            ))
+        })?;
+        let tpl = template::Template::parse(&txt)?;
+        out.push_str(&tpl.render(root, None)?);
     }
-    let raw = std::fs::read_to_string(&path)
-        .map_err(|e| error::Error::Root(format!("prefix read error ({}): {e}", path.display())))?;
-    Ok(Some(strip_maintainer_notes(&raw)))
+
+    if !same_path {
+        let txt = fs::read_to_string(shared_template_path).map_err(|e| {
+            error::Error::Root(format!(
+                "template read error ({}): {e}",
+                shared_template_path.display()
+            ))
+        })?;
+        let tpl = template::Template::parse(&txt)?;
+        out.push_str(&tpl.render(root, None)?);
+    }
+
+    Ok(out)
 }
 
-fn strip_maintainer_notes(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut in_code = false;
-    let mut in_note_comment = false;
-
-    for mut line in input.split_inclusive('\n') {
-        // Handle code fences (``` or ~~~) — do not strip inside.
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-            in_code = !in_code;
-        }
-        if in_code {
-            out.push_str(line);
-            continue;
-        }
-
-        let mut buf = String::with_capacity(line.len());
-        let mut i = 0usize;
-        while i < line.len() {
-            if in_note_comment {
-                if let Some(end) = line[i..].find("-->") {
-                    i += end + 3; // skip -->
-                    in_note_comment = false;
-                    continue;
-                } else {
-                    // Consume rest of line
-                    break;
-                }
-            }
-
-            // Strip HTML note comments starting with <!-- note:
-            if let Some(start) = line[i..].find("<!--") {
-                let start_abs = i + start;
-                // Push any text before the comment
-                buf.push_str(&line[i..start_abs]);
-                let after = &line[start_abs + 4..];
-                let after_trim = after.trim_start();
-                if after_trim.starts_with("note:") {
-                    // Start stripping
-                    if let Some(end) = after.find("-->") {
-                        // Strip within same line
-                        i = start_abs + 4 + end + 3; // move after -->
-                        continue;
-                    } else {
-                        // Multiline comment continues
-                        in_note_comment = true;
-                        break;
-                    }
-                } else {
-                    // Not a maintainer note; keep the literal comment
-                    buf.push_str("<!--");
-                    i = start_abs + 4;
-                    continue;
-                }
-            }
-
-            // Strip single-line [//]: <> (note: ...)
-            if let Some(pos) = line[i..].find("[//]: <> (note:") {
-                let pos_abs = i + pos;
-                buf.push_str(&line[i..pos_abs]);
-                // Drop through end of the line segment (up to next ')', but it's safe to drop to EOL)
-                // Find closing ')'
-                if let Some(close) = line[pos_abs..].find(')') {
-                    i = pos_abs + close + 1;
-                } else {
-                    i = line.len();
-                }
-                continue;
-            }
-
-            // No special patterns; copy rest and break
-            buf.push_str(&line[i..]);
-            i = line.len();
-        }
-        line = &buf;
-        out.push_str(line);
-    }
-    out
+fn paths_equal(a: &Path, b: &Path) -> bool {
+    // Compare via absolute components if possible; fall back to direct equality
+    let a_abs = a.canonicalize().unwrap_or_else(|_| a.to_path_buf());
+    let b_abs = b.canonicalize().unwrap_or_else(|_| b.to_path_buf());
+    a_abs == b_abs
 }
 
 fn compute_output_path(args: &Args, root: &Path) -> PathBuf {
@@ -297,58 +222,63 @@ fn print_unified_diff(current: &str, rendered: &str, target: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::strip_maintainer_notes;
+    use super::render_combined;
+    use std::fs;
+    use std::io::Write;
+    use tempfile::TempDir;
 
-    #[test]
-    fn strip_inline_html_note() {
-        let input = "# Title\n<!-- note: remove me -->\nBody\n";
-        let out = strip_maintainer_notes(input);
-        assert!(out.contains("# Title\n"));
-        assert!(out.contains("Body\n"));
-        assert!(!out.contains("note:"));
-        assert!(!out.contains("<!--"));
+    fn write(path: &std::path::Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let mut f = fs::File::create(path).unwrap();
+        write!(f, "{contents}").unwrap();
     }
 
     #[test]
-    fn strip_multiline_html_note_block() {
-        let input = "Intro\n<!-- note:\nInternal\nNotes\n-->\nAfter\n";
-        let out = strip_maintainer_notes(input);
-        assert!(out.starts_with("Intro\n"));
-        assert!(out.ends_with("After\n"));
-        assert!(!out.contains("Internal"));
-        assert!(!out.contains("note:"));
+    fn combines_local_then_shared() {
+        let td = TempDir::new().unwrap();
+        let root = td.path().to_path_buf();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let local = root.join(".agents.md");
+        let shared = root.join("shared.md");
+        write(&local, "L\n");
+        write(&shared, "S\n");
+        let out = render_combined(&root, &shared).unwrap();
+        assert_eq!(out, "L\nS\n");
     }
 
     #[test]
-    fn strip_bracket_note_syntax() {
-        let input = "A\n[//]: <> (note: hidden)\nB\n";
-        let out = strip_maintainer_notes(input);
-        assert!(out.contains("A\n"));
-        assert!(out.contains("B\n"));
-        assert!(!out.contains("note:"));
-        assert!(!out.contains("[//]: <>"));
+    fn local_is_full_template() {
+        let td = TempDir::new().unwrap();
+        let root = td.path().to_path_buf();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        // Local template checks for an existing file
+        let local = root.join(".agents.md");
+        write(
+            &local,
+            "Before\n<!-- if exists(\"Cargo.toml\") -->Hit\n<!-- endif -->\nAfter\n",
+        );
+        // Create Cargo.toml to satisfy exists
+        write(&root.join("Cargo.toml"), "[package]\nname=\"x\"\n");
+        // Shared template empty
+        let shared = root.join("shared.md");
+        write(&shared, "");
+        let out = render_combined(&root, &shared).unwrap();
+        assert!(out.contains("Before\n"));
+        assert!(out.contains("Hit\n"));
+        assert!(out.contains("After\n"));
     }
 
     #[test]
-    fn preserve_notes_inside_backtick_fences() {
-        let input = "```md\n<!-- note: keep -->\n```\n";
-        let out = strip_maintainer_notes(input);
-        assert_eq!(out, input);
-    }
-
-    #[test]
-    fn preserve_notes_inside_tilde_fences() {
-        let input = "~~~\n[//]: <> (note: keep)\n~~~\n";
-        let out = strip_maintainer_notes(input);
-        assert_eq!(out, input);
-    }
-
-    #[test]
-    fn handle_crlf_line_endings() {
-        let input = "Head\r\n<!-- note: gone -->\r\nTail\r\n";
-        let out = strip_maintainer_notes(input);
-        assert!(out.contains("Head\r\n"));
-        assert!(out.contains("Tail\r\n"));
-        assert!(!out.contains("note:"));
+    fn same_path_renders_once() {
+        let td = TempDir::new().unwrap();
+        let root = td.path().to_path_buf();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        let local = root.join(".agents.md");
+        write(&local, "OnlyOnce\n");
+        // Use the same path for shared
+        let out = render_combined(&root, &local).unwrap();
+        assert_eq!(out, "OnlyOnce\n");
     }
 }

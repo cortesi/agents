@@ -1,23 +1,20 @@
 # agents
 
-A tiny CLI that renders a per‑project `AGENTS.md` from a shared template at
-`~/.agents.md`, optionally prepending project‑local notes from
-`<project-root>/.agents-prefix.md`. It evaluates simple matchers against the target
-project (e.g., `exists("**/*.rs")`) to conditionally include or skip blocks of
-Markdown.
+A tiny CLI that renders a per‑project `AGENTS.md` by combining a project‑local
+template at `<project-root>/.agents.md` (optional) with a shared template at
+`~/.agents.md` (or an override). Both files are fully interpreted templates.
+It evaluates simple matchers against the target project (e.g., `exists("**/*.rs")`)
+to conditionally include or skip blocks of Markdown.
 
 ---
 
 ## How it works
 
 1. **Locate project root** (prefers git root; falls back to heuristics / provided path).
-2. **Load template** from `~/.agents.md` (unless overridden).
+2. **Load templates**: optional local `<project-root>/.agents.md` and shared `~/.agents.md` (unless overridden).
 3. **Evaluate matchers** against the target project (filesystem, metadata, environment).
-4. **Render**: include/exclude tagged blocks accordingly.
-5. **Prepend project preface**: if `<project-root>/.agents-prefix.md` exists, strip any
-   maintainer‑only comments marked with `note:` (see below) and prepend the rest
-   (no templating) to the rendered output.
-6. **Write** the result to `<project-root>/AGENTS.md`.
+4. **Render and combine**: render the local template (if present), then the shared template; concatenate results.
+5. **Write** the result to `<project-root>/AGENTS.md`.
 
 ---
 
@@ -69,43 +66,13 @@ If neither is found, `agents` exits with a non‑zero status. The resolved root 
 
 ---
 
-## Templates & Preface
+## Templates
 
-### Project‑specific preface (.agents-prefix.md)
+### Project‑local template (`.agents.md`)
 
-* Create `<project-root>/.agents-prefix.md` with any Markdown content you want at the
-  very top of `AGENTS.md`.
-* This file is optional. It is included **verbatim except** for **maintainer‑only
-  comments** that start with `note:` (documented below), which are stripped and
-  will not appear in `AGENTS.md`.
-* No control tags or matchers are evaluated inside `.agents-prefix.md`.
-
-#### Maintainer‑only comments in `.agents-prefix.md`
-
-Use a small `note:` namespace to leave internal comments that never ship.
-
-**Multi‑line block**
-
-```md
-<!-- note:
-Internal notes for maintainers only. Never shipped to AGENTS.md.
--->
-```
-
-**Single‑line variants**
-
-```md
-<!-- note: Update this table after the 1.3 release. -->
-[//]: <> (note: Remove this line after QA sign‑off.)
-```
-
-**Stripping rules**
-
-* Applied **only** to `<project-root>/.agents-prefix.md` (not to the shared template).
-* Matches **lowercase** `note:` that appears as the **first token** after the
-  comment opener.
-* Comments inside fenced code blocks (\`\`\` / \~\~\~) are **ignored** by the stripper
-  and will remain.
+- Optional file at `<project-root>/.agents.md`.
+- Fully interpreted using the same template language as the shared template.
+- Rendered first; its output is concatenated before the shared template output.
 
 ### Template language (minimal & Markdown‑safe)
 
@@ -193,13 +160,15 @@ This project contains Rust code.
 <!-- endif -->
 ```
 
-**`.agents-prefix.md`** (per‑project preface)
+**`<project>/.agents.md`** (per‑project template)
 
 ```md
+<!-- if exists("README.md") -->
 # Project Agents
+<!-- endif -->
 ```
 
-**Rendered `AGENTS.md`** (prefix + matched template block)
+**Rendered `AGENTS.md`** (local then shared)
 
 ```md
 # Project Agents
@@ -219,9 +188,7 @@ Priority order (first present wins):
 
 Additional inputs:
 
-* `<project-root>/.agents-prefix.md`: Optional per‑project preface that is prepended to
-  the generated `AGENTS.md` output. This is not a template; it is included
-  verbatim **except** for `note:` maintainer comments, which are stripped.
+* `<project-root>/.agents.md`: Optional per‑project template rendered before the shared one.
 
 ---
 
@@ -230,8 +197,9 @@ Additional inputs:
 * **Template errors** (e.g., unmatched `endif`, invalid expression, unknown
   matcher): the process **exits with a non‑zero status** and does not write
   output.
-* **Idempotency**: running `agents` with the same inputs (template,
-  `.agents-prefix.md`, project tree, and env) yields **byte‑identical**
+* **Idempotency**: running `agents` with the same inputs (shared template,
+  local `.agents.md`, project tree, and env) yields **byte‑identical**
   `AGENTS.md`. Re‑running without changes results in no diff and no rewrite.
 * **Determinism**: evaluation is pure with respect to the project tree and the
   current environment; there are no network calls or time‑dependent behaviors.
+
